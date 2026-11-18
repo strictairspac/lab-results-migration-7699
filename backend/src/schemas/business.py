@@ -25,4 +25,11 @@ class MappingInput(BaseModel):
 class RunInput(BaseModel):
  name:str=Field(min_length=2,max_length=120)
  mapping_id:int
-class RestoreInput(BaseModel):backup:dict
+ retention_days:int|None=Field(default=None,ge=1,le=3650)
+class RestoreInput(BaseModel):
+ backup:dict|None=None
+ from_archive:bool=False
+ @model_validator(mode='after')
+ def one_source(self):
+  if self.from_archive==(self.backup is not None):raise ValueError('请上传备份文件或选择从归档恢复，二者择一')
+  return self

@@ -6,6 +6,7 @@ from src.models.batch import Batch
 from src.models.mapping import Mapping
 from src.models.run import Run,TargetRow
 from src.services.migration import migrate,make_backup,key_digest,Cancelled
+from src.services import archive
 from src.services.audit import log
 q=redis.Redis.from_url(REDIS_URL)
 def progress(run_id,info):
@@ -26,7 +27,18 @@ while True:
    r.status='running';snapshot=r.snapshot;s.commit()
   try:
    result=migrate(snapshot['batch']['rows'],snapshot['mapping']['rules'],snapshot['mapping']['chunk_size'],lambda info:progress(run_id,info))
-   result['backup']=make_backup(result,run_id,snapshot['batch']['name'])
+   body=make_backup(result,run_id,snapshot['batch']['name'])
+   try:
+    info=archive.archive_backup(run_id,body,snapshot.get('retention_days'))
+    result['backup_archive']=info
+    log('worker','run.archived',f"{run_id}:{info['digest'][:12]}")
+    if info.get('reclaimed'):log('worker','archive.reclaimed',f"{run_id} 容量回收 {len(info['reclaimed'])} 份过期正文")
+   except archive.CapacityRejected as e:
+    result['backup']=body;result['backup_archive']={'status':'rejected','reason':str(e)}
+    log('worker','archive.rejected',f"{run_id}:{e}")
+   except Exception as e:
+    logging.exception('archive failed')
+    result['backup']=body;result['backup_archive']={'status':'error','reason':str(e)[:300]}
    with Session() as s:
     r=s.query(Run).filter_by(id=run_id).with_for_update().first()
     if r.cancel_requested:raise Cancelled()

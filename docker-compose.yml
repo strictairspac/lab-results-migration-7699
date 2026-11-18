@@ -6,6 +6,9 @@ x-app: &app
     REDIS_URL: redis://redis:6379/0
     JWT_SECRET: ${JWT_SECRET:-migration-check-local-demo-secret-change-before-use}
     SEED_DEMO: ${SEED_DEMO:-true}
+    ARCHIVE_DIR: /artifacts/archive
+    ARCHIVE_CAPACITY_BYTES: ${ARCHIVE_CAPACITY_BYTES:-8388608}
+    ARCHIVE_RETENTION_DAYS: ${ARCHIVE_RETENTION_DAYS:-30}
   volumes:
     - artifacts:/artifacts
   depends_on:
